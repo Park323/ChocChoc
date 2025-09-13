@@ -13,11 +13,7 @@
 
 </div>
 
----
-
-## 🌐 Language | 언어
-- **[한국어](README.md)**
-- **English** (Current page)
+**[한국어](README.md)**/**English** (Current page)
 
 ---
 

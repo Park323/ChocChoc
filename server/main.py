@@ -9,7 +9,7 @@ import os
 import openai
 from datetime import datetime
 from typing import Dict
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -43,9 +43,16 @@ for user_name, name in zip(
 class ApiKeyRequest(BaseModel):
     api_key: str
 
+is_valid_api_key = False
+
 @app.post("/register-apikey")
 async def register_apikey(req: ApiKeyRequest):
-    os.environ["OPENAI_API_KEY"] = req.api_key
+    import main
+    from genai import set_api_key
+    main.is_valid_api_key = set_api_key(req.api_key)
+    if not is_valid_api_key:
+        print("유효하지 않은 API Key")
+        raise HTTPException(status_code=400, detail="Invalid API Key")
     print("OPENAI_API_KEY 환경변수에 저장됨")
     return {"message": "API Key registered"}
 
@@ -60,6 +67,15 @@ async def cleanup_loop():
 
 @app.on_event("startup")
 async def on_startup():
+    if DEBUG_MODE:
+        print("DEBUG 모드 활성화: 디버그 전용 로직 실행")
+        # 디버그용 데이터 초기화
+        app.state.debug_data = {"example": "This is debug mode"}
+    else:
+        print("DEBUG 모드 비활성화: 일반 로직 실행")
+        # 프로덕션용 데이터 초기화
+        app.state.debug_data = {"example": "This is production mode"}
+
     asyncio.create_task(cleanup_loop())
 
 @app.post("/blink-data/")
@@ -95,7 +111,7 @@ async def send_processed_data(request_id: str):
     if not saved:
         return {"message": "No data found for the given request ID"}
 
-    if analyze_tablet_data and generate_report:
+    if is_valid_api_key and analyze_tablet_data and generate_report:
         user_name, history_df = history_store['increase']
         user_info = {
             'user_name': user_name,

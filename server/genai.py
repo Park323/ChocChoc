@@ -1,4 +1,3 @@
-import os
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -10,18 +9,38 @@ from datetime import datetime, timezone
 import openai
 
 
-
 INTERVAL_THRESHOLD = 60  # seconds
 IDEAL_BLINK_PER_MINUTE = 10
 MIN_LOG_NUM = 5
 
 
 # Set your OpenAI API key
-client = openai.OpenAI(
-    # This is the default and can be omitted
-    api_key=os.environ.get("OPENAI_API_KEY"),
-)
+client = None
 
+def check_api_key_validity():
+    """
+    Function to check if the OpenAI API key is valid.
+    :return: True if the API key is valid, False otherwise.
+    """
+    global client
+    try:
+        # Attempt to list models to verify the API key
+        response = client.models.list()
+        return True
+    except Exception as e:
+        print(f"Invalid API key: {e}")
+        return False
+
+def set_api_key(api_key: str):
+    """
+    Function to set the OpenAI API key.
+    :param api_key: The OpenAI API key as a string.
+    """
+    global client
+    client = openai.OpenAI(
+        api_key=api_key,
+    )
+    return check_api_key_validity()
 
 def get_weather_forecast():
     """

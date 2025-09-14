@@ -221,7 +221,7 @@ def generate_report_text(user_info: dict = None, histories: dict = None) -> str:
     except Exception as e:
         return f"An error occurred: {e}"
 
-def generate_report(raw_data: pd.DataFrame, user_info: dict = None) -> str:
+def generate_report(raw_data: pd.DataFrame, user_info: dict = None, debug: bool = False) -> str:
     """
     Function to generate a report from the blink data.
     :param data: DataFrame containing the blink data.
@@ -234,7 +234,7 @@ def generate_report(raw_data: pd.DataFrame, user_info: dict = None) -> str:
     image = plot_blink_data(cleaned_data, date)
     daily_bpm = (cleaned_data.mean() if cleaned_data is not None and not cleaned_data.empty else 0)
 
-    if len(slided_data) == 0:
+    if not debug and len(slided_data) == 0:
         return {
             "user_name": user_info.get('user_name', '사용자'),
             "report": "오늘의 눈 깜빡임 기록이 충분하지 않아 분석을 진행할 수 없습니다. 더 많은 데이터를 수집한 후 다시 시도해주세요.",

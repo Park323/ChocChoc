@@ -20,6 +20,8 @@ class BlinkSession(BaseModel):
     startedAt: str
     endedAt: str
 
+DEBUG_MODE = os.getenv("DEBUG_MODE", "false").lower() == "true"
+
 app = FastAPI()
 
 app.add_middleware(
@@ -100,7 +102,7 @@ async def send_processed_data(request_id: str):
             'joined_at': history_df['TIMESTAMP'].min(),
         }
         preprocessed_data = pd.concat([history_df, pd.DataFrame({"TIMESTAMP": [time_str.split('.')[0] for time_str in saved['payload']['events']]})])
-        report = generate_report(preprocessed_data, user_info=user_info)
+        report = generate_report(preprocessed_data, user_info=user_info, debug=DEBUG_MODE)
 
         # ✅ 이미지 바이트를 base64 문자열로 변환해서 JSON 직렬화 가능하게
         img_bytes = report.get("daily_line_plot")

@@ -83,12 +83,16 @@ def analyze_tablet_data(data):
     
     return (bpm_history_month, bpm_history_week, bpm_this_week)
 
-def clean_and_slide_data(data: pd.DataFrame, date: str = None) -> pd.DataFrame:
+def clean_and_slide_data(data: pd.DataFrame, date: str = None, maximum_log_num: int = None) -> pd.DataFrame:
     """
     Clean and slide the blink data.
     :param data: DataFrame containing the blink data.
     :return: Cleaned and slid DataFrame.
     """
+
+    # 최대 로그 수 제한
+    if maximum_log_num and len(data) > maximum_log_num:
+        data = data.tail(maximum_log_num)
 
     data['TIMESTAMP'] = pd.to_datetime(data['TIMESTAMP'])
     data['BLINK_INTERVAL'] = data.TIMESTAMP.diff()
@@ -103,7 +107,7 @@ def clean_and_slide_data(data: pd.DataFrame, date: str = None) -> pd.DataFrame:
         filtered_df = data
     else:
         filtered_df = data[pd.to_datetime(data['TIMESTAMP']).dt.strftime("%Y-%m-%d") == date]
-        
+
     if filtered_df.empty:
         print(f"No data available for {date}")
         return pd.Series(dtype=float), pd.Series(dtype=float)
@@ -253,7 +257,11 @@ def generate_report(raw_data: pd.DataFrame, user_info: dict = None, debug: bool 
     # Plot the blink data
     date = datetime.now().strftime("%Y-%m-%d")
     # date = datetime.now().strftime("2025-08-10")
-    slided_data, cleaned_data = clean_and_slide_data(raw_data, date = None if debug else date)
+    slided_data, cleaned_data = clean_and_slide_data(
+        raw_data, 
+        date = None if debug else date,
+        maximum_log_num = 5000 if debug else None,
+    )
     image = plot_blink_data(cleaned_data, date)
     daily_bpm = (cleaned_data.mean() if cleaned_data is not None and not cleaned_data.empty else 0)
 

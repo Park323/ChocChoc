@@ -38,15 +38,36 @@ export default function App() {
   // 앱 시작 전 사용자가 'API 키 등록 여부'를 선택할 때까지
   // 감지/카메라 초기화 같은 부하작업은 실행되지 않도록 `started` 플래그를 사용합니다.
   const [started, setStarted] = useState(false);
+  const [showApiInitModal, setShowApiInitModal] = useState(true);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [tempApiKey, setTempApiKey] = useState(""); // 입력용 임시 상태
 
-  const blink = useBlinkDetector(videoRef, started);
+  // 모달이 열려 있으면 깜빡임 감지 비활성화
+  const blink = useBlinkDetector(videoRef, started && !showApiInitModal);
 
   // 게임 로직
   const { gameState, resetGame, togglePause, restoreHeart, loseHeart } =
     useGameLogic(blink.blinks, blink.lastBlinkAt);
+
+  // 모달로 인해 강제로 일시정지한 여부 추적 (timeRemaining 감소 중지 목적)
+  const modalPausedRef = useRef(false);
+  useEffect(() => {
+    if (showApiInitModal) {
+      // 모달 열렸을 때 게임이 실행중이면 일시정지 시키고 표시
+      if (!gameState.isPaused) {
+        togglePause();
+        modalPausedRef.current = true;
+      }
+    } else {
+      // 모달로 인해 일시정지시킨 경우 모달 닫히면 원래대로 되돌림
+      if (modalPausedRef.current) {
+        togglePause();
+        modalPausedRef.current = false;
+      }
+    }
+    // gameState.isPaused, togglePause는 의존성으로 포함
+  }, [showApiInitModal, gameState.isPaused, togglePause]);
 
   // 🎤 VAD 상태 (비활성)
   // const vad = useMicVAD(true);
@@ -159,6 +180,13 @@ export default function App() {
 
   // 전송 후 즉시 분석결과 조회
   const sendAndFetch = async () => {
+    if (!apiKey) {
+      // API 키가 없으면 입력 모달을 띄움
+      console.log("API Key is required.");
+      setShowApiKeyModal(true);
+      return;
+    }
+
     const ok = await sendBlinkData();
     if (ok) await fetchProcessed();
   };
@@ -184,8 +212,9 @@ export default function App() {
   }, []);
 
   const handleApiKeySave = async () => {
-    setApiKey(tempApiKey);
-    localStorage.setItem("apiKey", tempApiKey);
+    const cleaned = tempApiKey.trim();
+    setApiKey(cleaned);
+    localStorage.setItem("apiKey", cleaned);
     setShowApiKeyModal(false);
 
     // 서버에 API Key 전달
@@ -206,12 +235,13 @@ export default function App() {
     }
 
     setStarted(true);
+    setShowApiInitModal(false);
   };
 
   return (
     <div style={styles.wrap}>
       {/* 시작 전 모달 */}
-      {!started && (
+      {!started && !apiKey && (
         <div
           style={{
             position: "fixed",
@@ -254,7 +284,7 @@ export default function App() {
                 API Key 등록하고 시작
               </button>
               <button
-                onClick={() => setStarted(true)}
+                onClick={() => { setStarted(true); setShowApiInitModal(false); }}
                 style={{
                   padding: "8px 12px",
                   borderRadius: 6,
@@ -388,6 +418,15 @@ export default function App() {
           onShowHUDChange={setShowHUD}
           onStopCamera={stopCamera}
           onStartCamera={() => startCamera()}
+          apiKey={apiKey}
+          onOpenApiKeyModal={() => {
+            setTempApiKey(apiKey || ""); // 기존 API Key를 입력 필드에 채움
+            setShowApiKeyModal(true); // 모달 열기
+          }}
+          onClearApiKey={() => {
+            setApiKey(null); // API Key 초기화
+            localStorage.removeItem("apiKey"); // 로컬 스토리지에서 삭제
+          }}
         />
       )}
 

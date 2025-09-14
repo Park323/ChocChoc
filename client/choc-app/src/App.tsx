@@ -197,6 +197,7 @@ export default function App() {
         },
         body: JSON.stringify({ api_key: tempApiKey }),
       });
+      console.log("API Key 등록 응답:", res);
       if (!res.ok) throw new Error("API Key 등록 실패");
       // 필요하다면 서버 응답 처리
     } catch (e) {
@@ -210,6 +211,13 @@ export default function App() {
 
   return (
     <div style={styles.wrap}>
+      {/* 상단 사용자 정보 */}
+      {/* <div style={styles.header}>
+        <div style={styles.username}>
+          사용자: Guest (ID: 1) | {"수분의 지배자"}
+        </div>
+      </div> */}
+
       {/* 시작 전 모달 */}
       {!started && (
         <div
@@ -366,6 +374,9 @@ export default function App() {
         showContextMenu={showContextMenu}
         onToggleContextMenu={() => setShowContextMenu(!showContextMenu)}
         onSendAndFetch={sendAndFetch}
+        // 사용자 정보 전달 (processed가 없으면 Guest)
+        userName={processed?.user_name ?? "Guest"}
+        userId={processed?.user_id ?? "1"}
       />
 
       {/* 컨트롤 패널 */}
@@ -522,5 +533,16 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid #ddd",
     background: "#f6f6f6",
     cursor: "pointer",
+  },
+  header: {
+    padding: "8px 0",
+    borderBottom: "1px solid #ddd",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  username: {
+    fontSize: "14px",
+    color: "#333",
+    fontWeight: 500,
   },
 };

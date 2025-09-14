@@ -33,7 +33,10 @@ interface GameUIProps {
   dangerOpacity: number;
   onToggleContextMenu: () => void;
   showContextMenu: boolean;
-  onSendAndFetch: () => void; // 데이터 전송 & 분석 결과 보기 함수 추가
+  onSendAndFetch: () => void;
+  // 사용자 정보 (옵션)
+  userName?: string;
+  userId?: string;
 }
 
 export const GameUI: React.FC<GameUIProps> = ({
@@ -56,10 +59,70 @@ export const GameUI: React.FC<GameUIProps> = ({
   dangerOpacity,
   onToggleContextMenu,
   showContextMenu,
-  onSendAndFetch, // 데이터 전송 & 분석 결과 보기 함수 추가
+  onSendAndFetch,
+  userName,
+  userId,
 }) => {
-  const timePercent = (timeRemaining / 6000) * 100;
+  // 사용자 정보 표시용 최소 스타일
+  const headerStyles: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    pointerEvents: "auto",
+    marginBottom: 8,
+  };
+  const avatarStyles: React.CSSProperties = {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    background: "#8b5cf6",
+    color: "#fff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: 700,
+    fontSize: 16,
+    boxShadow: "0 4px 10px rgba(0,0,0,0.15)",
+  };
+  const nameStyles: React.CSSProperties = {
+    fontSize: 14,
+    fontWeight: 600,
+    color: "#111",
+  };
+  const HonorStyles: React.CSSProperties = {
+    fontSize: 14,
+    fontWeight: 600,
+    fontStyle: "italic",
+    color: "#FF5000",
+  };
+  const subStyles: React.CSSProperties = {
+    fontSize: 11,
+    color: "#666",
+  };
 
+  // display userName/userId from props (fallbacks)
+  const displayName = userName ?? "Guest";
+  const displayId = userId ?? "1";
+
+  // initial for avatar
+  const initial = String(displayName).trim().charAt(0).toUpperCase() || "G";
+
+  // 통합된 상단 카드
+  const UserHeader = (
+    <div style={headerStyles}>
+      <div style={avatarStyles}>{initial}</div>
+      <div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={nameStyles}>{displayName}</div>
+          <div style={HonorStyles}>눈물의 여왕</div>
+        </div>
+        <div style={subStyles}>ID: {displayId}</div>
+      </div>
+    </div>
+  );
+
+  // 타이머 게이지 백분율 계산
+  const timePercent = (timeRemaining / 6000) * 100;
   // 게임 상태에 따른 투명도 결정
   const getCurrentOpacity = () => {
     switch (gamePhase) {
@@ -92,6 +155,9 @@ export const GameUI: React.FC<GameUIProps> = ({
 
   return (
     <Container style={{ opacity: getCurrentOpacity() }}>
+      <UserHeaderContainer>
+        {UserHeader}
+      </UserHeaderContainer>
       {/* 상단 상태바 */}
       <StatusBar $gamePhase={gamePhase}>
         {/* 중앙: 상태 점 (피버 모드가 아닐 때만 배지 표시) */}
@@ -315,6 +381,16 @@ const Container = styled.div`
   -webkit-app-region: drag;
   user-select: none;
   /* overflow: hidden; */
+`;
+
+// 사용자 정보 헤더
+const UserHeaderContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  pointer-events: auto;
+  margin-left: 500px;
 `;
 
 // StatusBar를 원래대로 되돌리고 피버 모드만 특별한 테두리 효과 추가

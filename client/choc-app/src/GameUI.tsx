@@ -151,10 +151,7 @@ export const GameUI: React.FC<GameUIProps> = ({
               🎛️
             </Button>
 
-            <Button
-              onClick={onSendAndFetch}
-              title="데이터 전송 & 분석 결과 보기"
-            >
+            <Button onClick={onSendAndFetch} title="데이터 전송 & 분석 결과 보기">
               📊
             </Button>
           </ButtonContainer>

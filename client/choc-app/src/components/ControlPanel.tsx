@@ -19,6 +19,11 @@ interface ControlPanelProps {
   onShowHUDChange: (showHUD: boolean) => void;
   onStopCamera: () => void;
   onStartCamera: () => void;
+
+  // API Key 관련 props (optional)
+  apiKey?: string | null;
+  onOpenApiKeyModal?: () => void;
+  onClearApiKey?: () => void;
 }
 
 export function ControlPanel({
@@ -39,6 +44,9 @@ export function ControlPanel({
   onShowHUDChange,
   onStopCamera,
   onStartCamera,
+  apiKey,
+  onOpenApiKeyModal,
+  onClearApiKey,
 }: ControlPanelProps) {
   const getBlinkStateColor = () => {
     if (blinkState === "CLOSED" || blinkState === "CLOSING") return "#ff5050";
@@ -90,6 +98,38 @@ export function ControlPanel({
         <div style={{ fontSize: 10, color: "#aaa", marginBottom: 4 }}>
           환경: {envInfo.userAgent} |{envInfo.isSecure ? " 🔒" : " ⚠️"} |
           {envInfo.hasMediaDevices ? " 📹" : " ❌"}
+        </div>
+      </div>
+
+      {/* API Key 상태 */}
+      <div style={styles.apiRow}>
+        <div style={{ fontSize: 12, color: "#ddd" }}>
+          API Key:{" "}
+          <b style={{ color: apiKey ? "#21c074" : "#ffb86b" }}>
+            {apiKey ? "등록됨" : "미등록"}
+          </b>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            type="button"
+            style={styles.smallButton}
+            onClick={() => {
+              // 안전하게 App 쪽 핸들러 호출 (App에서는 setTempApiKey/setShowApiKeyModal 등을 처리)
+              if (onOpenApiKeyModal) onOpenApiKeyModal();
+            }}
+            title={apiKey ? "API Key 수정" : "API Key 등록"}
+          >
+            {apiKey ? "수정" : "등록"}
+          </button>
+          {apiKey && onClearApiKey && (
+            <button
+              style={styles.smallButtonDanger}
+              onClick={() => { if (onClearApiKey) onClearApiKey(); }}
+              title="API Key 삭제"
+            >
+              삭제
+            </button>
+          )}
         </div>
       </div>
 
@@ -256,5 +296,33 @@ const styles: Record<string, React.CSSProperties> = {
     gap: "clamp(6px, 1.5vw, 8px)", // 반응형 gap
     marginBottom: "clamp(6px, 1.5vw, 8px)", // 반응형 margin
     flexWrap: "wrap",
+  },
+  apiRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    width: "100%",
+    padding: "8px",
+    borderRadius: "4px",
+    background: "rgba(255, 255, 255, 0.1)",
+    marginBottom: "8px",
+  },
+  smallButton: {
+    background: "#333",
+    color: "white",
+    border: "none",
+    padding: "4px 8px",
+    borderRadius: "4px",
+    cursor: "pointer",
+    fontSize: "clamp(10px, 2vw, 12px)", // 반응형 폰트 크기
+  },
+  smallButtonDanger: {
+    background: "#ff5050",
+    color: "white",
+    border: "none",
+    padding: "4px 8px",
+    borderRadius: "4px",
+    cursor: "pointer",
+    fontSize: "clamp(10px, 2vw, 12px)", // 반응형 폰트 크기
   },
 };

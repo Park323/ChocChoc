@@ -194,8 +194,8 @@ app.whenReady().then(async () => {
 
 // 모든 창 닫혀도 종료하지 않음 (트레이 상주)
 app.on("window-all-closed", () => {
-  // CHECKLIST: 윈도우에서 종료하려면 이 코드 사용
-  if (process.platform !== 'darwin') app.quit();
+  // 윈도우/리눅스에서는 모든 창이 닫히면 앱을 종료합니다.
+  if (process.platform !== "darwin") app.quit();
 });
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();

@@ -35,12 +35,10 @@ export class WindowsPlatform implements PlatformBehavior {
     app.setAppUserModelId(process.execPath); // Windows 알림 용 앱 ID 설정
 
     // 시스템 트레이 동작 최적화
-    if (process.platform === "win32") {
-      app.setLoginItemSettings({
-        openAtLogin: true,
-        path: process.execPath,
-        // args: ["--hidden"], // 시작 시 숨김 상태로
-      });
-    }
+    app.setLoginItemSettings({
+      openAtLogin: true,
+      path: process.execPath,
+      // args: ["--hidden"], // 시작 시 숨김 상태로
+    });
   }
 }

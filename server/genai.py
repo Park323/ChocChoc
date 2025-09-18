@@ -1,4 +1,3 @@
-import os
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -10,18 +9,38 @@ from datetime import datetime, timezone
 import openai
 
 
-
 INTERVAL_THRESHOLD = 60  # seconds
 IDEAL_BLINK_PER_MINUTE = 10
 MIN_LOG_NUM = 5
 
 
 # Set your OpenAI API key
-client = openai.OpenAI(
-    # This is the default and can be omitted
-    api_key=os.environ.get("OPENAI_API_KEY"),
-)
+client = None
 
+def check_api_key_validity():
+    """
+    Function to check if the OpenAI API key is valid.
+    :return: True if the API key is valid, False otherwise.
+    """
+    global client
+    try:
+        # Attempt to list models to verify the API key
+        response = client.models.list()
+        return True
+    except Exception as e:
+        print(f"Invalid API key: {e}")
+        return False
+
+def set_api_key(api_key: str):
+    """
+    Function to set the OpenAI API key.
+    :param api_key: The OpenAI API key as a string.
+    """
+    global client
+    client = openai.OpenAI(
+        api_key=api_key,
+    )
+    return check_api_key_validity()
 
 def get_weather_forecast():
     """
@@ -64,12 +83,16 @@ def analyze_tablet_data(data):
     
     return (bpm_history_month, bpm_history_week, bpm_this_week)
 
-def clean_and_slide_data(data: pd.DataFrame, date: str) -> pd.DataFrame:
+def clean_and_slide_data(data: pd.DataFrame, date: str = None, maximum_log_num: int = None) -> pd.DataFrame:
     """
     Clean and slide the blink data.
     :param data: DataFrame containing the blink data.
     :return: Cleaned and slid DataFrame.
     """
+
+    # 최대 로그 수 제한
+    if maximum_log_num and len(data) > maximum_log_num:
+        data = data.tail(maximum_log_num)
 
     data['TIMESTAMP'] = pd.to_datetime(data['TIMESTAMP'])
     data['BLINK_INTERVAL'] = data.TIMESTAMP.diff()
@@ -80,7 +103,11 @@ def clean_and_slide_data(data: pd.DataFrame, date: str) -> pd.DataFrame:
     slided_data = data.copy()
     
     # Filter data for the given date
-    filtered_df = data[pd.to_datetime(data['TIMESTAMP']).dt.strftime("%Y-%m-%d") == date]
+    if date is None:
+        filtered_df = data
+    else:
+        filtered_df = data[pd.to_datetime(data['TIMESTAMP']).dt.strftime("%Y-%m-%d") == date]
+
     if filtered_df.empty:
         print(f"No data available for {date}")
         return pd.Series(dtype=float), pd.Series(dtype=float)
@@ -221,7 +248,7 @@ def generate_report_text(user_info: dict = None, histories: dict = None) -> str:
     except Exception as e:
         return f"An error occurred: {e}"
 
-def generate_report(raw_data: pd.DataFrame, user_info: dict = None) -> str:
+def generate_report(raw_data: pd.DataFrame, user_info: dict = None, debug: bool = False) -> str:
     """
     Function to generate a report from the blink data.
     :param data: DataFrame containing the blink data.
@@ -230,11 +257,15 @@ def generate_report(raw_data: pd.DataFrame, user_info: dict = None) -> str:
     # Plot the blink data
     date = datetime.now().strftime("%Y-%m-%d")
     # date = datetime.now().strftime("2025-08-10")
-    slided_data, cleaned_data = clean_and_slide_data(raw_data, date)
+    slided_data, cleaned_data = clean_and_slide_data(
+        raw_data, 
+        date = None if debug else date,
+        maximum_log_num = 5000 if debug else None,
+    )
     image = plot_blink_data(cleaned_data, date)
     daily_bpm = (cleaned_data.mean() if cleaned_data is not None and not cleaned_data.empty else 0)
 
-    if len(slided_data) == 0:
+    if not debug and len(slided_data) == 0:
         return {
             "user_name": user_info.get('user_name', '사용자'),
             "report": "오늘의 눈 깜빡임 기록이 충분하지 않아 분석을 진행할 수 없습니다. 더 많은 데이터를 수집한 후 다시 시도해주세요.",

@@ -1,6 +1,7 @@
 // src/GameUI.tsx
 import React, { useEffect } from "react";
 import styled, { keyframes, css } from "styled-components";
+import { UserHeader } from "./components/UserHeader";
 
 // blinkAPI 타입 정의
 declare global {
@@ -33,7 +34,10 @@ interface GameUIProps {
   dangerOpacity: number;
   onToggleContextMenu: () => void;
   showContextMenu: boolean;
-  onSendAndFetch: () => void; // 데이터 전송 & 분석 결과 보기 함수 추가
+  onSendAndFetch: () => void;
+  // 사용자 정보 (옵션)
+  userName?: string;
+  userId?: string;
 }
 
 export const GameUI: React.FC<GameUIProps> = ({
@@ -56,10 +60,16 @@ export const GameUI: React.FC<GameUIProps> = ({
   dangerOpacity,
   onToggleContextMenu,
   showContextMenu,
-  onSendAndFetch, // 데이터 전송 & 분석 결과 보기 함수 추가
+  onSendAndFetch,
+  userName,
+  userId,
 }) => {
-  const timePercent = (timeRemaining / 6000) * 100;
+  // display userName/userId from props (fallbacks)
+  const displayName = userName ?? "Guest";
+  const displayId = userId ?? "1";
 
+  // 타이머 게이지 백분율 계산
+  const timePercent = (timeRemaining / 6000) * 100;
   // 게임 상태에 따른 투명도 결정
   const getCurrentOpacity = () => {
     switch (gamePhase) {
@@ -92,6 +102,12 @@ export const GameUI: React.FC<GameUIProps> = ({
 
   return (
     <Container style={{ opacity: getCurrentOpacity() }}>
+      {/* 유저 상태바 */}
+      <Container style={{ opacity: getCurrentOpacity() }}>
+        <UserHeaderContainer>
+          <UserHeader userName={userName} userId={userId} />
+        </UserHeaderContainer>
+      </Container>
       {/* 상단 상태바 */}
       <StatusBar $gamePhase={gamePhase}>
         {/* 중앙: 상태 점 (피버 모드가 아닐 때만 배지 표시) */}
@@ -312,6 +328,16 @@ const Container = styled.div`
   -webkit-app-region: drag;
   user-select: none;
   /* overflow: hidden; */
+`;
+
+// 사용자 정보 헤더
+const UserHeaderContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  pointer-events: auto;
+  margin-left: 500px;
 `;
 
 // StatusBar를 원래대로 되돌리고 피버 모드만 특별한 테두리 효과 추가

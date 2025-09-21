@@ -338,8 +338,6 @@ export default function App() {
     tryStartIfReady();
   };
 
-  console.log("api key", apiKey, "hasServerApiKey", hasServerApiKey);
-
   // render user modal (입력/저장)
   return (
     <div style={styles.wrap}>

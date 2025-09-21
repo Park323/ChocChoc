@@ -1,14 +1,7 @@
-import {
-  app,
-  BrowserWindow,
-  systemPreferences,
-  Tray,
-  Menu,
-  nativeImage,
-  screen,
-} from "electron";
+import { app, BrowserWindow, Tray, Menu, nativeImage, screen } from "electron";
 import * as path from "path";
 import { fileURLToPath } from "url";
+import { createPlatform } from "./platform/factory.js";
 
 process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = "true";
 
@@ -23,37 +16,15 @@ let isQuitting = false;
 let openEyeImg: Electron.NativeImage | null = null;
 let closedEyeImg: Electron.NativeImage | null = null;
 
-const isMac = process.platform === "darwin";
+const platform = createPlatform();
 
 async function createWindow() {
-  // macOS 카메라 권한 (첫 실행 시 요청)
-  if (isMac) {
-    try {
-      await systemPreferences.askForMediaAccess("camera");
-    } catch (e) {
-      console.error(e);
-    }
-  }
+  // 플랫폼별 권한 요청
+  await platform.requestPermissions();
 
   win = new BrowserWindow({
-    width: 640,
-    height: 900,
+    ...platform.getWindowOptions(),
     show: true,
-    frame: false, // true에서 false로 변경 (상단바 제거)
-    transparent: true, // false에서 true로 변경 (투명 배경)
-    opacity: 1,
-    resizable: true,
-    movable: true,
-    alwaysOnTop: true,
-    skipTaskbar: true,
-    fullscreenable: false,
-    minimizable: false,
-    maximizable: false,
-
-    // 드래그 개선을 위한 추가 설정
-    hasShadow: false,
-    thickFrame: false,
-
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -67,7 +38,7 @@ async function createWindow() {
     await win.loadURL(process.env.VITE_DEV_SERVER_URL);
     win.webContents.openDevTools({ mode: "detach" });
   } else {
-    const indexPath = path.join(__dirname, "../../dist/index.html");
+    const indexPath = path.join(__dirname, "../dist/index.html");
     await win.loadFile(indexPath);
   }
 
@@ -85,7 +56,7 @@ async function createWindow() {
 }
 
 function loadTrayImages() {
-  const assetsPath = path.join(__dirname, "../../assets");
+  const assetsPath = path.join(__dirname, "../assets");
   const openEyePath = path.join(assetsPath, "eye-open.png");
   const closedEyePath = path.join(assetsPath, "eye-closed.png");
 
@@ -196,9 +167,10 @@ function positionWindowNearTray() {
       display.workArea.x + display.workArea.width - winBounds.width - padding
     )
   );
-  const y = isMac
-    ? Math.round(trayBounds.y + trayBounds.height + 8) // 메뉴바 아래
-    : Math.round(trayBounds.y - winBounds.height - 8);
+  const y =
+    process.platform === "darwin"
+      ? Math.round(trayBounds.y + trayBounds.height + 8) // 메뉴바 아래
+      : Math.round(trayBounds.y - winBounds.height - 8);
 
   win.setPosition(x, y, false);
 }
@@ -215,14 +187,15 @@ function updateTrayVisual() {
 }
 
 app.whenReady().then(async () => {
-  if (isMac && app.dock) app.dock.hide(); // 상태바 앱 느낌
+  if (platform.setupPlatformSpecific) platform.setupPlatformSpecific();
   await createWindow();
   createTray();
 });
 
 // 모든 창 닫혀도 종료하지 않음 (트레이 상주)
 app.on("window-all-closed", () => {
-  /* noop */
+  // 윈도우/리눅스에서는 모든 창이 닫히면 앱을 종료합니다.
+  if (process.platform !== "darwin") app.quit();
 });
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();

@@ -1,6 +1,7 @@
 // src/GameUI.tsx
 import React, { useEffect } from "react";
 import styled, { keyframes, css } from "styled-components";
+import { UserHeader } from "./components/UserHeader";
 
 // blinkAPI 타입 정의
 declare global {
@@ -63,63 +64,9 @@ export const GameUI: React.FC<GameUIProps> = ({
   userName,
   userId,
 }) => {
-  // 사용자 정보 표시용 최소 스타일
-  const headerStyles: React.CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    pointerEvents: "auto",
-    marginBottom: 8,
-  };
-  const avatarStyles: React.CSSProperties = {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    background: "#8b5cf6",
-    color: "#fff",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontWeight: 700,
-    fontSize: 16,
-    boxShadow: "0 4px 10px rgba(0,0,0,0.15)",
-  };
-  const nameStyles: React.CSSProperties = {
-    fontSize: 14,
-    fontWeight: 600,
-    color: "#111",
-  };
-  const HonorStyles: React.CSSProperties = {
-    fontSize: 14,
-    fontWeight: 600,
-    fontStyle: "italic",
-    color: "#FF5000",
-  };
-  const subStyles: React.CSSProperties = {
-    fontSize: 11,
-    color: "#666",
-  };
-
   // display userName/userId from props (fallbacks)
   const displayName = userName ?? "Guest";
   const displayId = userId ?? "1";
-
-  // initial for avatar
-  const initial = String(displayName).trim().charAt(0).toUpperCase() || "G";
-
-  // 통합된 상단 카드
-  const UserHeader = (
-    <div style={headerStyles}>
-      <div style={avatarStyles}>{initial}</div>
-      <div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={nameStyles}>{displayName}</div>
-          <div style={HonorStyles}>눈물의 여왕</div>
-        </div>
-        <div style={subStyles}>ID: {displayId}</div>
-      </div>
-    </div>
-  );
 
   // 타이머 게이지 백분율 계산
   const timePercent = (timeRemaining / 6000) * 100;
@@ -155,9 +102,12 @@ export const GameUI: React.FC<GameUIProps> = ({
 
   return (
     <Container style={{ opacity: getCurrentOpacity() }}>
-      <UserHeaderContainer>
-        {UserHeader}
-      </UserHeaderContainer>
+      {/* 유저 상태바 */}
+      <Container style={{ opacity: getCurrentOpacity() }}>
+        <UserHeaderContainer>
+          <UserHeader userName={userName} userId={userId} />
+        </UserHeaderContainer>
+      </Container>
       {/* 상단 상태바 */}
       <StatusBar $gamePhase={gamePhase}>
         {/* 중앙: 상태 점 (피버 모드가 아닐 때만 배지 표시) */}

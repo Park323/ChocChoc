@@ -8,40 +8,83 @@ import base64
 import os
 import openai
 from datetime import datetime
-from typing import Dict
-from fastapi import FastAPI, Request, HTTPException
+from typing import Dict, List, Optional
+from uuid import uuid4
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 
+class UserStatus(BaseModel):
+    id: str
+    name: str
+    meta: Optional[Dict] = None
+
+class HonorStatus(BaseModel):
+    user_id: str
+    title: Optional[str] = None
+    color: Optional[str] = None
+
 class BlinkSession(BaseModel):
     id: str
-    events: list[str]
+    events: List[str]
     startedAt: str
     endedAt: str
 
 DEBUG_MODE = os.getenv("DEBUG_MODE", "false").lower() == "true"
+class ApiKeyRequest(BaseModel):
+    api_key: str
+    user_id: Optional[str] = None
+
+class RegisterUserRequest(BaseModel):
+    id: str
+    name: str
+    meta: Optional[Dict] = None
 
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],       # ex) ["http://localhost:5173"]
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# in-memory stores (single-user assumption is fine)
 data_store: Dict[str, Dict] = {}
-history_store: Dict[str, Dict] = {}
+user_store: Dict[str, Dict] = {}
+api_key_store: Dict[str, str] = {}
+history_store: Dict[str, List[Dict]] = {}
+honor_store: Dict[str, Dict] = {}
 for user_name, name in zip(
     ['판교 개발자 영진', '노모어피자 치즈크러스트', '애플 디톡스', '야근조아', '퇴근덕후', '김연진사생팬'],
     ['increase', 'decrease', 'stable', 'month', 'week', 'first']
 ):
+    user_store[name] = {"id": name, "name": user_name, "meta": {}}
+    honor_store[name] = {"user_id": name, "title": "기본 사용자", "color": "#000000"}
     history_store[name] = (user_name, pd.read_csv(f'data/blink_data_{name}.csv', index_col=0))
 
-class ApiKeyRequest(BaseModel):
-    api_key: str
+@app.post("/register-user")
+async def register_user(req: RegisterUserRequest):
+    uid = str(req.id)
+    if uid in user_store:
+        return {"ok": True, "created": False, "user": user_store[uid]}
+    user = {
+        "id": uid,
+        "name": req.name,
+        "meta": req.meta or {},
+        "created_at": datetime.utcnow().isoformat(),
+    }
+    user_store[uid] = user
+    # ensure default honor if not present
+    honor_store.setdefault(uid, {"user_id": uid, "title": "눈물의 여왕", "color": "#FF5000"})
+    return {"ok": True, "created": True, "user": user}
+
+@app.get("/has-apikey")
+async def has_apikey(user_id: str = Query("1")):
+    exists = user_id in api_key_store and bool(api_key_store.get(user_id))
+    return {"has_api_key": bool(exists)}
 
 is_valid_api_key = False
 
@@ -53,6 +96,7 @@ async def register_apikey(req: ApiKeyRequest):
     if not is_valid_api_key:
         print("유효하지 않은 API Key")
         raise HTTPException(status_code=400, detail="Invalid API Key")
+    api_key_store[str(req.user_id or "1")] = req.api_key
     print("OPENAI_API_KEY 환경변수에 저장됨")
     return {"message": "API Key registered"}
 
@@ -90,6 +134,26 @@ async def receive_blink_data(data: BlinkSession):
     data_store[data.id] = {"payload": data.dict(), "timestamp": ts}
     return {"message": "Data received and processed successfully", "id": data.id, "timestamp": ts}
     
+    if not req.api_key or not req.user_id:
+        raise HTTPException(status_code=400, detail="api_key and user_id required")
+    api_key_store[str(req.user_id)] = req.api_key
+    return {"ok": True, "user_id": req.user_id}
+
+@app.post("/get-user-status")
+async def get_user_status(user_id: str = Query("1")):
+    user = user_store.get(str(user_id))
+    if not user:
+        raise HTTPException(status_code=400, detail="User not found")
+    return {"payload": user, "timestamp": datetime.utcnow().isoformat()}
+
+@app.post("/get-user-honor")
+async def get_user_honor(user_id: str = Query("1")):
+    honor = honor_store.get(str(user_id))
+    if not honor:
+        honor = {"user_id": str(user_id), "title": "눈물의 여왕", "color": "#FF5000"}
+        honor_store[str(user_id)] = honor
+    return honor
+
 @app.post("/blink-session")
 async def receive_blink_session(data: BlinkSession):
     # 기존 로직 재사용

@@ -40,8 +40,16 @@ export default function App() {
   const [started, setStarted] = useState(false);
   const [showApiInitModal, setShowApiInitModal] = useState(true);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
-  const [apiKey, setApiKey] = useState<string | null>(null);
+  // API Key는 로컬에 저장하지 않고 서버에 보관함
+  const [hasServerApiKey, setHasServerApiKey] = useState(false);
   const [tempApiKey, setTempApiKey] = useState(""); // 입력용 임시 상태
+  const [apiKey, setApiKey] = useState<string | null>(null);
+
+  // 사용자명 등록 모달 관련 상태 (최초 실행 시 서버/로컬에 없으면 입력)
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [tempUserName, setTempUserName] = useState("");
+  // server-side user info
+  const [userInfo, setUserInfo] = useState<any | null>(null);
 
   // 모달이 열려 있으면 깜빡임 감지 비활성화
   const blink = useBlinkDetector(videoRef, started && !showApiInitModal);
@@ -126,25 +134,17 @@ export default function App() {
 
   // 데이터 서버로 전송
   const sendBlinkData = async () => {
-    if (!apiKey) {
-      console.error("API Key가 필요합니다.");
-      return false;
-    }
-
+    // 서버가 사용자 id로 API Key를 알고 있다고 가정: 클라이언트는 키를 전송하지 않음
     const payload = {
-      id: "1",
+      id: localStorage.getItem("userId") ?? "1",
       events,
       startedAt: startedAt.current,
       endedAt: new Date().toISOString(),
     };
-
     try {
       const res = await fetch(`${API_BASE}/blink-session`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`, // API 키 추가
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -159,17 +159,16 @@ export default function App() {
   // 처리 결과 가져오기(JSON: report, daily_blink_per_minute, daily_line_plot_b64)
   const [processed, setProcessed] = useState<any | null>(null);
   const fetchProcessed = async () => {
-    if (!apiKey) {
-      console.error("API Key가 필요합니다.");
-      return;
-    }
-
     try {
-      const res = await fetch(`${API_BASE}/processed-data/1`, {
-        headers: {
-          Authorization: `Bearer ${apiKey}`, // API 키 추가
-        },
-      });
+      // 서버는 요청의 user_id(세션/쿠키/바디 등)으로 API Key 소유 여부를 확인한다고 가정
+      const uid = localStorage.getItem("userId") ?? "1";
+      const res = await fetch(
+        `${API_BASE}/processed-data/${encodeURIComponent(String(uid))}`,
+        {
+          method: "GET",
+        }
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       setProcessed(json);
       console.log("processed:", json);
@@ -206,50 +205,205 @@ export default function App() {
     )} / 최댓값: ${max.toFixed(3)} | 최근 갱신: ${lastTs}`;
   })();
 
+  // helper: try to start the app when both user and apiKey are available
+  const tryStartIfReady = () => {
+    const hasApiKey = Boolean(hasServerApiKey);
+    const hasUserName =
+      Boolean(userInfo?.status?.payload?.name) ||
+      Boolean(localStorage.getItem("userName"));
+    if (hasApiKey && hasUserName) {
+      setStarted(true);
+    }
+  };
+
+  // 서버에 API Key 존재 여부 확인
+  const fetchHasApiKey = async (userId: string) => {
+    try {
+      const res = await fetch(
+        `${API_BASE}/has-apikey?user_id=${encodeURIComponent(userId)}`,
+        {
+          method: "GET",
+        }
+      );
+      if (!res.ok) return false;
+      const json = await res.json(); // { has_api_key: true/false }
+      return Boolean(json?.has_api_key);
+    } catch (e) {
+      console.error("fetchHasApiKey failed", e);
+      return false;
+    }
+  };
+
+  // register-user (calls server; server will ignore if user exists)
+  const registerUser = async (id: string, name?: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/register-user`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: String(id), name: name ?? "" }),
+      });
+      if (!res.ok) {
+        console.warn("register-user failed:", res.status);
+        return null;
+      }
+      const json = await res.json();
+      const savedId = json?.user?.id ?? id;
+      localStorage.setItem("userId", String(savedId));
+      if (!json?.user?.name && name && name !== "") {
+        localStorage.setItem("userName", String(json.user.name));
+      }
+      return json?.user ?? null;
+    } catch (e) {
+      console.error("registerUser error:", e);
+      return null;
+    }
+  };
+
+  // fetchUserInfo: returns fetched info and also sets userInfo state
+  const fetchUserInfo = async (userId: string) => {
+    try {
+      const res = await fetch(
+        `${API_BASE}/get-user-status?user_id=${encodeURIComponent(userId)}`,
+        { method: "POST" }
+      );
+      if (!res.ok) return null;
+      const status = await res.json();
+      const res2 = await fetch(
+        `${API_BASE}/get-user-honor?user_id=${encodeURIComponent(userId)}`,
+        { method: "POST" }
+      );
+      const honor = res2.ok ? await res2.json() : null;
+      const info = { status, honor };
+      setUserInfo(info);
+      // persist name if present
+      if (status?.payload?.name) {
+        localStorage.setItem("userName", String(status.payload.name));
+      }
+      return info;
+    } catch (e) {
+      console.error("fetchUserInfo failed", e);
+      return null;
+    }
+  };
+
+  // initial check on mount: ensure user exists on server and apiKey presence
   useEffect(() => {
-    const savedApiKey = localStorage.getItem("apiKey");
-    if (savedApiKey) setApiKey(savedApiKey);
+    (async () => {
+      const uid = localStorage.getItem("userId") ?? "1";
+      // try to fetch user info first
+      const info = await fetchUserInfo(String(uid));
+      const serverName = info?.status?.payload?.name;
+      // if server has no name, ask user to input
+      if (!serverName || serverName === "") {
+        setTempUserName(serverName ?? "");
+        setShowUserModal(true);
+      }
+      // 서버에 API Key가 등록되어 있는지 확인
+      const hasKey = await fetchHasApiKey(String(uid));
+      setHasServerApiKey(hasKey);
+      if (!hasKey) setShowApiKeyModal(true);
+      tryStartIfReady();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleApiKeySave = async () => {
-    const cleaned = tempApiKey.trim();
-    setApiKey(cleaned);
-    localStorage.setItem("apiKey", cleaned);
-    setShowApiKeyModal(false);
-
-    // 서버에 API Key 전달
+    // 서버에 API Key 전달(서버가 유효성 검사/보관을 담당)
     try {
       const res = await fetch(`${API_BASE}/register-apikey`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ api_key: tempApiKey }),
+        headers: { "Content-Type": "application/json" },
+       body: JSON.stringify({ api_key: tempApiKey, user_id: localStorage.getItem("userId") ?? "1" }),
       });
-      console.log("API Key 등록 응답:", res);
       if (!res.ok) throw new Error("API Key 등록 실패");
-      // 필요하다면 서버 응답 처리
+      // 등록 성공 시 로컬에 저장하지 않음 — 서버에만 보관
+      setHasServerApiKey(true);
+      setShowApiKeyModal(false);
+      tryStartIfReady();
     } catch (e) {
       alert("서버에 API Key 등록 중 오류가 발생했습니다.");
-      setStarted(false);
-      return;
+      console.error(e);
     }
-
-    setStarted(true);
-    setShowApiInitModal(false);
   };
 
+  // user save handler: call register-user and update state
+  const handleUserSave = async () => {
+    const uid = localStorage.getItem("userId") ?? "1";
+    const created = await registerUser(String(uid), tempUserName.trim());
+    if (created) {
+      // refresh server info
+      await fetchUserInfo(String(uid));
+    }
+    setShowUserModal(false);
+    tryStartIfReady();
+  };
+
+  console.log("api key", apiKey, "hasServerApiKey", hasServerApiKey);
+
+  // render user modal (입력/저장)
   return (
     <div style={styles.wrap}>
-      {/* 상단 사용자 정보 */}
-      {/* <div style={styles.header}>
-        <div style={styles.username}>
-          사용자: Guest (ID: 1) | {"수분의 지배자"}
+      {/* 사용자명 입력 모달 */}
+      {showUserModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10000,
+            padding: 20,
+          }}
+        >
+          <div
+            style={{
+              width: 380,
+              maxWidth: "100%",
+              background: "#fff",
+              borderRadius: 8,
+              padding: 20,
+              boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
+              textAlign: "center",
+            }}
+          >
+            <h3 style={{ marginTop: 0 }}>사용자 이름 입력</h3>
+            <input
+              type="text"
+              placeholder="이름을 입력하세요"
+              value={tempUserName}
+              onChange={(e) => setTempUserName(e.target.value)}
+              style={{
+                padding: "8px",
+                borderRadius: 4,
+                border: "1px solid #ddd",
+                width: "100%",
+                marginBottom: 16,
+              }}
+            />
+            <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+              <button
+                onClick={handleUserSave}
+                disabled={!tempUserName.trim()}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: 6,
+                  border: "none",
+                  background: tempUserName.trim() ? "#007BFF" : "#ccc",
+                  color: "#fff",
+                  cursor: tempUserName.trim() ? "pointer" : "not-allowed",
+                }}
+              >
+                저장
+              </button>
+            </div>
+          </div>
         </div>
-      </div> */}
+      )}
 
-      {/* 시작 전 모달 */}
-      {!started && !apiKey && (
+      {/* 시작하기 전에 모달 */}
+      {!started && !hasServerApiKey && (
         <div
           style={{
             position: "fixed",
@@ -405,8 +559,18 @@ export default function App() {
         onToggleContextMenu={() => setShowContextMenu(!showContextMenu)}
         onSendAndFetch={sendAndFetch}
         // 사용자 정보 전달 (processed가 없으면 Guest)
-        userName={processed?.user_name ?? "Guest"}
-        userId={processed?.user_id ?? "1"}
+        userName={
+          userInfo?.status?.payload?.name ??
+          processed?.user_name ??
+          "Guest"
+        }
+        userId={
+          userInfo?.status?.payload?.id ??
+          processed?.user_id ??
+          "1"
+        }
+        // honor 객체(또는 문자열)를 전달
+        honor={userInfo?.honor ?? null}
       />
 
       {/* 컨트롤 패널 */}

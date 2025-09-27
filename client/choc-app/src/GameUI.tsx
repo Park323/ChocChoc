@@ -35,9 +35,9 @@ interface GameUIProps {
   onToggleContextMenu: () => void;
   showContextMenu: boolean;
   onSendAndFetch: () => void;
-  // 사용자 정보 (옵션)
   userName?: string;
   userId?: string;
+  honor?: any;
 }
 
 export const GameUI: React.FC<GameUIProps> = ({
@@ -63,6 +63,7 @@ export const GameUI: React.FC<GameUIProps> = ({
   onSendAndFetch,
   userName,
   userId,
+  honor,
 }) => {
   // display userName/userId from props (fallbacks)
   const displayName = userName ?? "Guest";
@@ -105,7 +106,7 @@ export const GameUI: React.FC<GameUIProps> = ({
       {/* 유저 상태바 */}
       <Container style={{ opacity: getCurrentOpacity() }}>
         <UserHeaderContainer>
-          <UserHeader userName={userName} userId={userId} />
+          <UserHeader userName={userName} userId={userId} honor={honor} />
         </UserHeaderContainer>
       </Container>
       {/* 상단 상태바 */}

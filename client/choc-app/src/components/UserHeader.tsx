@@ -4,12 +4,18 @@ import styled from "styled-components";
 interface UserHeaderProps {
   userName?: string;
   userId?: string;
+  honor?: string | { title?: string; color?: string; font_style?: string };
 }
 
-export const UserHeader: React.FC<UserHeaderProps> = ({ userName, userId }) => {
+export const UserHeader: React.FC<UserHeaderProps> = ({ userName, userId, honor }) => {
   const displayName = userName ?? "Guest";
   const displayId = userId ?? "1";
   const initial = String(displayName).trim().charAt(0).toUpperCase() || "G";
+
+  // honor 처리: 문자열 또는 객체 지원
+  const honorTitle =
+    typeof honor === "string" ? honor : honor?.title ?? "눈물의 여왕";
+  const honorColor = typeof honor === "object" && honor?.color ? honor.color : "#FF5000";
 
   return (
     <Container>
@@ -17,7 +23,7 @@ export const UserHeader: React.FC<UserHeaderProps> = ({ userName, userId }) => {
       <Info>
         <NameRow>
           <Name>{displayName}</Name>
-          <Honor>눈물의 여왕</Honor>
+          <Honor style={{ color: honorColor }}>{honorTitle}</Honor>
         </NameRow>
         <Id>ID: {displayId}</Id>
       </Info>
